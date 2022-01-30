@@ -4,7 +4,7 @@
 #include <infiniband/verbs.h>
 #include <stdbool.h>
 #include <stdint.h>
-
+#include <sys/time.h>
 #define DEFAULT_IB_PORT 1
 
 #define DEFAULT_MSG_SIZE 4096
