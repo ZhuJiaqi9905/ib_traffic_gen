@@ -344,6 +344,7 @@ bool init_conn_ctx(struct conn_context *ctx) {
 
     if (init_attr.cap.max_inline_data >= ctx->data_buf_size) {
       ctx->send_flags |= IBV_SEND_INLINE;
+
     } else {
       fprintf(stderr,
               "Fail to set IBV_SEND_INLINE because max inline data size is %d "
@@ -351,6 +352,7 @@ bool init_conn_ctx(struct conn_context *ctx) {
               init_attr.cap.max_inline_data, ctx->data_buf_size);
       goto clean_qp;
     }
+    printf("max_inline_data %d\n", init_attr.cap.max_inline_data);
   }
 
   attr.qp_state = IBV_QPS_INIT;
@@ -539,7 +541,26 @@ unsigned int post_write(struct conn_context *ctx, unsigned int n) {
 
   return i;
 }
+unsigned int post_write_exact(struct conn_context *ctx, uint32_t offset,
+                              uint32_t msg_size) {
+  struct ibv_sge list = {.addr = (uintptr_t)(ctx->data_buf + offset),
+                         .length = msg_size,
+                         .lkey = ctx->data_mr->lkey};
 
+  struct ibv_send_wr wr = {.wr_id = ctx->id,
+                           .sg_list = &list,
+                           .num_sge = 1,
+                           .opcode = IBV_WR_RDMA_WRITE,
+                           .send_flags = ctx->send_flags,
+                           .wr.rdma.remote_addr = ctx->rem_mem.addr,
+                           .wr.rdma.rkey = ctx->rem_mem.key};
+
+  struct ibv_send_wr *bad_wr;
+  if (ibv_post_send(ctx->qp, &wr, &bad_wr) != 0) {
+    return 0;
+  }
+  return 1;
+}
 // Post 'n' send requests.
 // Return # of send requests that are successfully posted.
 unsigned int post_send(struct conn_context *ctx, unsigned int n) {

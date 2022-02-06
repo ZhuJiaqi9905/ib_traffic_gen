@@ -9,6 +9,8 @@
 
 #define DEFAULT_MSG_SIZE 4096
 
+#define DEFAULT_BUF_SIZE 1073741824
+
 #define DEFAULT_ITERS 100
 
 #define DEFAULT_SERVER_PORT 12345
@@ -153,6 +155,8 @@ bool connect_qp(struct conn_context *ctx, struct conn_dest *dest);
 // Post 'n' write requests.
 // Return # of write requests that are successfully posted.
 unsigned int post_write(struct conn_context *ctx, unsigned int n);
+unsigned int post_write_exact(struct conn_context *ctx, uint32_t offset,
+                              uint32_t msg_size);
 
 // Post 'n' send requests.
 // Return # of send requests that are successfully posted.

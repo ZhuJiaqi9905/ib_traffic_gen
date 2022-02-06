@@ -23,6 +23,7 @@ static uint16_t server_port = DEFAULT_SERVER_PORT;
 static char *ib_dev_name = NULL;
 static int ib_port = DEFAULT_IB_PORT;
 static unsigned int msg_size = DEFAULT_MSG_SIZE;
+static uint32_t buf_size = DEFAULT_BUF_SIZE;
 static unsigned int iters = DEFAULT_ITERS;
 static unsigned int num_qps = DEFAULT_NUM_QPS;
 static unsigned int tx_depth = DEFAULT_TX_DEPTH;
@@ -68,14 +69,16 @@ int main(int argc, char **argv) {
   if (!connections) {
     goto destroy_device;
   }
-
+  if (msg_size * iters > buf_size) {
+    iters = buf_size / msg_size;
+  }
   for (unsigned int i = 0; i < num_qps; i++) {
     connections[i].id = i;
     connections[i].dev_ctx = &device;
     connections[i].qp = NULL;
     connections[i].data_mr = NULL;
     connections[i].data_buf = NULL;
-    connections[i].data_buf_size = msg_size;
+    connections[i].data_buf_size = buf_size;
     connections[i].validate_buf = validate_buf;
     connections[i].inline_msg = inline_msg;
     connections[i].use_multi_gid = use_multi_gid;
@@ -171,6 +174,10 @@ static void print_usage(char *app) {
           "%d)\n",
           DEFAULT_MSG_SIZE);
   fprintf(stderr,
+          "-b, --buf-size=<buffer size> size of the RDMA register memory "
+          "(default %d)\n",
+          DEFAULT_BUF_SIZE);
+  fprintf(stderr,
           "  -n, --iters=<iters>          number of exchanges per queue pair "
           "(default %d)\n",
           DEFAULT_ITERS);
@@ -207,11 +214,12 @@ static bool parse_args(int argc, char **argv) {
         {.name = "events", .has_arg = 0, .val = 'e'},
         {.name = "chk", .has_arg = 0, .val = 'c'},
         {.name = "multi-gid", .has_arg = 0, .val = 'm'},
+        {.name = "buf-size", .has_arg = 1, .val = 'b'},
         {.name = "help", .has_arg = 0, .val = 'h'},
         {}};
 
-    int c =
-        getopt_long(argc, argv, "p:d:i:C:P:s:n:q:t:lecmh", long_options, NULL);
+    int c = getopt_long(argc, argv, "p:d:i:C:P:s:n:q:t:b:lecmh", long_options,
+                        NULL);
 
     // printf("%d\n", c);
     if (c == -1) {
@@ -238,7 +246,9 @@ static bool parse_args(int argc, char **argv) {
     case 's':
       msg_size = (unsigned int)strtoul(optarg, NULL, 0);
       break;
-
+    case 'b':
+      buf_size = (uint32_t)strtoul(optarg, NULL, 0);
+      break;
     case 'C':
       controller_ip = optarg;
       break;
@@ -319,11 +329,16 @@ static bool gen_traffic(struct conn_context *connections, unsigned int num_qps,
     fprintf(stderr, "Cannot get current time\n");
     return false;
   }
-
+  uint32_t offset = 0;
   for (unsigned int i = 0; i < num_qps; i++) {
-    if (post_write(&connections[i], init_num_reqs) != init_num_reqs) {
-      fprintf(stderr, "Could not post %u write on QP %u\n", init_num_reqs, i);
-      return false;
+
+    for (int i = 0; i < init_num_reqs; ++i) {
+      if (post_write_exact(&connections[i], offset, msg_size) == 0) {
+
+        fprintf(stderr, "Could not post %u write on QP %u\n", init_num_reqs, i);
+        return false;
+      }
+      offset += msg_size; // assure not overflow
     }
 
     connections[i].post_reqs = init_num_reqs;
@@ -379,10 +394,11 @@ static bool gen_traffic(struct conn_context *connections, unsigned int num_qps,
           return false;
         }
       } else if (connections[qp].post_reqs < iters) {
-        if (post_write(&connections[qp], 1) != 1) {
+        if (post_write_exact(&connections[qp], offset, msg_size) != 1) {
           fprintf(stderr, "Could not post write on QP %u\n", qp);
           return false;
         }
+        offset += msg_size;
         connections[qp].post_reqs++;
       }
     }
@@ -395,7 +411,7 @@ static bool gen_traffic(struct conn_context *connections, unsigned int num_qps,
 
   float total_usec =
       (end.tv_sec - start.tv_sec) * 1000000 + (end.tv_usec - start.tv_usec);
-  float total_bytes = num_qps * iters * connections[0].data_buf_size;
+  float total_bytes = num_qps * iters * msg_size;
   float tput_gbps = total_bytes * 8 / total_usec / 1e3;
   printf("Throughput: %.2f Gbps\n", tput_gbps);
 
