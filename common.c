@@ -207,7 +207,7 @@ bool init_dev_ctx(struct dev_context *ctx) {
   // Create a completion queue
   printf("max cqe is %d\n", ctx->dev_attr.max_cqe);
   printf("max wre is %d\n", ctx->dev_attr.max_qp_wr);
-  ctx->cq = ibv_create_cq(ctx->ctx, ctx->dev_attr.max_cqe - 10, NULL,
+  ctx->cq = ibv_create_cq(ctx->ctx, 1024, NULL,
                           ctx->channel, 0);
   if (!(ctx->cq)) {
     fprintf(stderr, "Fail to create the completion queue\n");
@@ -324,8 +324,8 @@ bool init_conn_ctx(struct conn_context *ctx) {
       .recv_cq = ctx->dev_ctx->cq,
       .cap =
           {
-              .max_send_wr = ctx->dev_ctx->dev_attr.max_qp_wr / 4,
-              .max_recv_wr = ctx->dev_ctx->dev_attr.max_qp_wr / 4,
+              .max_send_wr = 1024,
+              .max_recv_wr = 1024,
               .max_send_sge = 1,
               .max_recv_sge = 1,
           },
@@ -339,6 +339,11 @@ bool init_conn_ctx(struct conn_context *ctx) {
   }
 
   ctx->send_flags = IBV_SEND_SIGNALED;
+  ibv_query_qp(ctx->qp, &attr, IBV_QP_CAP, &init_attr);
+  printf("ibv_qp_attr: max_send_wr %d, max_recv_wr %d\n", attr.cap.max_send_wr,
+         attr.cap.max_recv_wr);
+  printf("ibv_qp_init_attr: max_send_wr %d, max_recv_wr %d\n",
+         init_attr.cap.max_send_wr, init_attr.cap.max_recv_wr);
   if (ctx->inline_msg) {
     ibv_query_qp(ctx->qp, &attr, IBV_QP_CAP, &init_attr);
 
