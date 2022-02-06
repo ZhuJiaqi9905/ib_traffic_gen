@@ -207,8 +207,8 @@ bool init_dev_ctx(struct dev_context *ctx) {
   // Create a completion queue
   printf("max cqe is %d\n", ctx->dev_attr.max_cqe);
   printf("max wre is %d\n", ctx->dev_attr.max_qp_wr);
-  ctx->cq = ibv_create_cq(ctx->ctx, 1024, NULL,
-                          ctx->channel, 0);
+  ctx->cq =
+      ibv_create_cq(ctx->ctx, ctx->dev_attr.max_qp_wr, NULL, ctx->channel, 0);
   if (!(ctx->cq)) {
     fprintf(stderr, "Fail to create the completion queue\n");
     goto clean_pd;
@@ -309,7 +309,8 @@ bool init_conn_ctx(struct conn_context *ctx) {
   }
 
   // Register memory region for data
-  int access_flags = IBV_ACCESS_REMOTE_WRITE | IBV_ACCESS_LOCAL_WRITE;
+  int access_flags =
+      IBV_ACCESS_REMOTE_WRITE | IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_READ;
   ctx->data_mr = ibv_reg_mr(ctx->dev_ctx->pd, ctx->data_buf, ctx->data_buf_size,
                             access_flags);
   if (!(ctx->data_mr)) {
@@ -324,8 +325,8 @@ bool init_conn_ctx(struct conn_context *ctx) {
       .recv_cq = ctx->dev_ctx->cq,
       .cap =
           {
-              .max_send_wr = 1024,
-              .max_recv_wr = 1024,
+              .max_send_wr = ctx->dev_ctx->dev_attr.max_qp_wr / 4,
+              .max_recv_wr = ctx->dev_ctx->dev_attr.max_qp_wr / 4,
               .max_send_sge = 1,
               .max_recv_sge = 1,
           },
@@ -364,7 +365,8 @@ bool init_conn_ctx(struct conn_context *ctx) {
   attr.pkey_index = 0;
   attr.port_num = ctx->dev_ctx->dev_port;
   // Allow incoming RDMA writes on this QP
-  attr.qp_access_flags = IBV_ACCESS_REMOTE_WRITE;
+  attr.qp_access_flags =
+      IBV_ACCESS_REMOTE_WRITE | IBV_ACCESS_REMOTE_READ | IBV_ACCESS_LOCAL_WRITE;
 
   if (ibv_modify_qp(ctx->qp, &attr,
                     IBV_QP_STATE | IBV_QP_PKEY_INDEX | IBV_QP_PORT |
@@ -539,7 +541,8 @@ unsigned int post_write(struct conn_context *ctx, unsigned int n) {
   struct ibv_send_wr *bad_wr;
   unsigned int i;
   for (i = 0; i < n; i++) {
-    if (ibv_post_send(ctx->qp, &wr, &bad_wr) != 0) {
+    if (ibv_post_send(ctx->qp, &wr, bad_wr) != 0) {
+      printf("errno %d, error message %s\n", errno, strerror(errno));
       break;
     }
   }
@@ -548,20 +551,23 @@ unsigned int post_write(struct conn_context *ctx, unsigned int n) {
 }
 unsigned int post_write_exact(struct conn_context *ctx, uint32_t offset,
                               uint32_t msg_size) {
-  struct ibv_sge list = {.addr = (uintptr_t)(ctx->data_buf + offset),
+  struct ibv_sge list = {.addr = (uint64_t)ctx->data_buf + offset,
                          .length = msg_size,
                          .lkey = ctx->data_mr->lkey};
 
-  struct ibv_send_wr wr = {.wr_id = ctx->id,
-                           .sg_list = &list,
-                           .num_sge = 1,
-                           .opcode = IBV_WR_RDMA_WRITE,
-                           .send_flags = ctx->send_flags,
-                           .wr.rdma.remote_addr = ctx->rem_mem.addr + offset,
-                           .wr.rdma.rkey = ctx->rem_mem.key};
-
+  struct ibv_send_wr wr = {
+      .wr_id = ctx->id,
+      .sg_list = &list,
+      .num_sge = 1,
+      .opcode = IBV_WR_RDMA_WRITE,
+      .send_flags = ctx->send_flags,
+      .wr.rdma.remote_addr = ctx->rem_mem.addr + offset,
+      .wr.rdma.rkey = ctx->rem_mem.key,
+      .next = NULL,
+  };
   struct ibv_send_wr *bad_wr;
   if (ibv_post_send(ctx->qp, &wr, &bad_wr) != 0) {
+    printf("errno %d, error message %s\n", errno, strerror(errno));
     return 0;
   }
   return 1;

@@ -330,9 +330,11 @@ static bool gen_traffic(struct conn_context *connections, unsigned int num_qps,
     return false;
   }
   uint32_t offset = 0;
+
   for (unsigned int i = 0; i < num_qps; i++) {
 
-    for (int i = 0; i < init_num_reqs; ++i) {
+
+    for (int j = 0; j < init_num_reqs; ++j) {
       if (post_write_exact(&connections[i], offset, msg_size) == 0) {
 
         fprintf(stderr, "Could not post %u write on QP %u\n", init_num_reqs, i);
