@@ -552,7 +552,7 @@ unsigned int post_write_exact(struct conn_context *ctx, uint32_t offset,
                            .num_sge = 1,
                            .opcode = IBV_WR_RDMA_WRITE,
                            .send_flags = ctx->send_flags,
-                           .wr.rdma.remote_addr = ctx->rem_mem.addr,
+                           .wr.rdma.remote_addr = ctx->rem_mem.addr + offset,
                            .wr.rdma.rkey = ctx->rem_mem.key};
 
   struct ibv_send_wr *bad_wr;
