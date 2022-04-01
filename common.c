@@ -309,7 +309,7 @@ bool init_conn_ctx(struct conn_context *ctx) {
   }
 
   // Register memory region for data
-  int access_flags = IBV_ACCESS_REMOTE_WRITE | IBV_ACCESS_LOCAL_WRITE;
+  int access_flags = IBV_ACCESS_REMOTE_WRITE | IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_READ;
   ctx->data_mr = ibv_reg_mr(ctx->dev_ctx->pd, ctx->data_buf, ctx->data_buf_size,
                             access_flags);
   if (!(ctx->data_mr)) {
@@ -357,7 +357,7 @@ bool init_conn_ctx(struct conn_context *ctx) {
   attr.pkey_index = 0;
   attr.port_num = ctx->dev_ctx->dev_port;
   // Allow incoming RDMA writes on this QP
-  attr.qp_access_flags = IBV_ACCESS_REMOTE_WRITE;
+  attr.qp_access_flags = IBV_ACCESS_REMOTE_READ | IBV_ACCESS_REMOTE_WRITE;
 
   if (ibv_modify_qp(ctx->qp, &attr,
                     IBV_QP_STATE | IBV_QP_PKEY_INDEX | IBV_QP_PORT |

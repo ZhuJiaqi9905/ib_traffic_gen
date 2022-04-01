@@ -1,0 +1,21 @@
+Open IB device mlx5_0
+max cqe is 4194303
+max wre is 32768
+Device name: mlx5_0
+Device port: 1
+RoCE v2 GID count: 0 (Index:)
+Initialize 1 queue pairs
+Connection ID:            0
+Data buffer size:         1073741824
+Send messages as inline:  0
+Local identifier:         20
+Queue pair number:        136
+Packet sequence number:   4196091
+Global Identifier:        ::
+GUID:                     0
+Queue pair 0
+local addr: LID 0x0014, QPN 0x000088, PSN 0x4006fb, GID ::, GUID 0000000000000000
+remote addr: LID 0x0001, QPN 0x00021e, PSN 0x704534, GID ::, GUID 0000000000000000
+local memory: Addr 139854441914368, Key 1572864
+Exchange RDMA metadata with the client
+Experiment completes

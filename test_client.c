@@ -15,6 +15,7 @@
 static void print_usage(char *app);
 static bool parse_args(int argc, char **argv);
 static void mytest(struct conn_context *conn);
+static void mytest_read(struct conn_context *conn);
 
 // Generate RDMA Write traffic
 static bool gen_traffic(struct conn_context *connections, unsigned int num_qps,
@@ -118,7 +119,8 @@ int main(int argc, char **argv) {
   //   goto destroy_socket;
   // }
 
-  mytest(connections);
+  // mytest(connections);
+  mytest_read(connections);
 
 
   if (!send_completion(server_sockfd)) {
@@ -457,6 +459,76 @@ void post_write_with_addr
   }
 }
 
+void post_read_with_addr
+(struct conn_context *ctx, uint64_t begin_addr, uint64_t end_addr) {
+  struct ibv_sge list = {
+    .addr   = (uintptr_t)ctx->data_buf + begin_addr,
+    .length = end_addr - begin_addr,
+    .lkey   = ctx->data_mr->lkey
+  };
+  struct ibv_send_wr wr = {
+    .wr_id    = ctx->id, 
+    .sg_list  = &list,
+    .num_sge  = 1,
+    .opcode   = IBV_WR_RDMA_READ,
+    .send_flags 
+              = IBV_SEND_SIGNALED,
+    .wr.rdma.remote_addr 
+              = ctx->rem_mem.addr + begin_addr,
+    .wr.rdma.rkey 
+              = ctx->rem_mem.key
+  }, *bad_wr;
+
+  // fprintf(stderr, "%lld\n", wr.wr.rdma.remote_addr);
+  if (ibv_post_send(ctx->qp, &wr, &bad_wr) != 0) {
+    fprintf(stderr, "fail 3248323");
+    fprintf(stderr, strerror(errno));
+    exit(0);
+  }
+}
+static void mytest_read(struct conn_context *ctx) {
+
+  for(int block = 1024 * 1024; block <= tot_area_size; block <<= 1) {
+    struct timeval start, end;
+    if (gettimeofday(&start, NULL)) {
+      fprintf(stderr, "Cannot get current time\n");
+      return;
+    }
+    
+    struct ibv_cq *cq = ctx->dev_ctx->cq;
+    struct ibv_wc wc;
+    int tot = 0, cnt = tot_area_size / block;
+
+    for(int addr = 0; addr < tot_area_size; addr += block) {
+      post_read_with_addr(ctx, addr, addr + block);
+      while (1) {
+        int ne = ibv_poll_cq(cq, 1, &wc);
+        if (ne < 0) {
+          fprintf(stderr, "fail asdjlkf");
+          return;
+        }
+        if (ne == 0) continue;
+        if (wc.status != IBV_WC_SUCCESS) {
+          fprintf(stderr, "fail faspdf");
+          return;
+        }
+        break;
+      }
+    }
+
+    if (gettimeofday(&end, NULL)) {
+      fprintf(stderr, "Cannot get current time\n");
+      return;
+    }
+    float total_usec =
+        (end.tv_sec - start.tv_sec) * 1000000 + (end.tv_usec - start.tv_usec);
+    float total_bytes = tot_area_size;
+    float tput_gbps = (total_bytes / 1024 / 1024 / 1024) / (total_usec / 1e6);
+    printf("blocksize = %d, Throughput: %.2f GBps\n", 
+      block, tput_gbps);
+  }
+}
+
 static void mytest(struct conn_context *ctx) {
 
   for(int block = 1024; block <= tot_area_size; block <<= 1) {
@@ -486,8 +558,6 @@ static void mytest(struct conn_context *ctx) {
         break;
       }
     }
-
-
 
     if (gettimeofday(&end, NULL)) {
       fprintf(stderr, "Cannot get current time\n");
