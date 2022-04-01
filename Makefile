@@ -3,7 +3,7 @@
 CC = gcc
 LDLIBS = -libverbs
 CFLAGS = -Wall -g
-APPS = ib_write_client ib_write_server ib_send_client ib_send_server
+APPS = ib_write_client ib_write_server ib_send_client ib_send_server test_server test_client
 OBJS = write_client.o write_server.o send_client.o send_server.o common.o
 DEPS = common.h
 
@@ -19,6 +19,12 @@ ib_send_client: send_client.o common.o
 	$(CC) $(CFLAGS) -o $@ $^ $(LDLIBS)
 
 ib_send_server: send_server.o common.o
+	$(CC) $(CFLAGS) -o $@ $^ $(LDLIBS)
+
+test_client: test_client.o common.o
+	$(CC) $(CFLAGS) -o $@ $^ $(LDLIBS)
+
+test_server: test_server.o common.o
 	$(CC) $(CFLAGS) -o $@ $^ $(LDLIBS)
 
 %.o: %.c $(DEPS)
