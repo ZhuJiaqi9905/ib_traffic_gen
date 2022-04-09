@@ -331,10 +331,13 @@ static bool gen_traffic(struct conn_context *connections, unsigned int num_qps,
   }
   uint32_t offset = 0;
 
+  uint64_t *id_vec = (uint64_t *)calloc(iters, sizeof(uint64_t));
+  int k_id = 0;
+  connections[0].id = 0;
   for (unsigned int i = 0; i < num_qps; i++) {
 
-
     for (int j = 0; j < init_num_reqs; ++j) {
+      connections[i].id += 1;
       if (post_write_exact(&connections[i], offset, msg_size) == 0) {
 
         fprintf(stderr, "Could not post %u write on QP %u\n", init_num_reqs, i);
@@ -385,8 +388,9 @@ static bool gen_traffic(struct conn_context *connections, unsigned int num_qps,
         fprintf(stderr, "Fail to get the completion event\n");
         return false;
       }
-
-      unsigned int qp = wc.wr_id;
+      id_vec[k_id++] = wc.wr_id;
+      // unsigned int qp = wc.wr_id;
+      unsigned int qp = 0;
       connections[qp].complete_reqs++;
 
       if (connections[qp].complete_reqs == iters) {
@@ -400,12 +404,17 @@ static bool gen_traffic(struct conn_context *connections, unsigned int num_qps,
           fprintf(stderr, "Could not post write on QP %u\n", qp);
           return false;
         }
+        connections[qp].id += 1;
         offset += msg_size;
         connections[qp].post_reqs++;
       }
     }
-  }
 
+  }
+  for(int i = 0; i < k_id; ++i){
+    printf("%ld\n", id_vec[i]);
+  }
+  free(id_vec);
   if (gettimeofday(&end, NULL)) {
     fprintf(stderr, "Cannot get current time\n");
     return false;
