@@ -488,7 +488,7 @@ void post_read_with_addr
 }
 static void mytest_read(struct conn_context *ctx) {
 
-  for(int block = 1024 * 1024; block <= tot_area_size; block <<= 1) {
+  for(int block = 1024; block <= tot_area_size; block <<= 1) {
     struct timeval start, end;
     if (gettimeofday(&start, NULL)) {
       fprintf(stderr, "Cannot get current time\n");
